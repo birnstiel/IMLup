@@ -64,7 +64,7 @@ def make_disklab2d_model(
     d.make_disk_from_simplified_lbp(sigma_coeff, r_c, sigma_exp)
 
     if d.mass / mstar > 0.2:
-        warnings.warn('Disk mass is unreasonably high: M_disk / Mstar = {d.mass/mstar:.2g}')
+        warnings.warn(f'Disk mass is unreasonably high: M_disk / Mstar = {d.mass/mstar:.2g}')
 
     # add the dust, based on the dust-to-gas parameters
 
@@ -361,5 +361,11 @@ def write_radmc3d(disk2d, lam, path, show_plots=False, nphot=10000000):
     disklab.radmc3d.write_wavelength_micron(lam_mic, path=path)
     disklab.radmc3d.write_opacity(disk2d, path=path)
     disklab.radmc3d.write_radmc3d_input(
-        {'scattering_mode': 5, 'scattering_mode_max': 5, 'nphot': nphot},
+        {
+            'scattering_mode': 5,
+            'scattering_mode_max': 5,
+            'nphot': nphot,
+            'dust_2daniso_nphi': '60',
+            'mc_scat_maxtauabs', '5.d0',
+        },
         path=path)

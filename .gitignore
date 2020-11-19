@@ -3,3 +3,4 @@ __pycache__/
 dustkappa_IMLUP*.npz
 tmp*/
 testbed/
+Qphi_IMLup_mod.fits
