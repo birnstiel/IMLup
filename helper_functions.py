@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import astropy.constants as c
 import astropy.units as u
 
-from imgcube import imagecube
+from gofish import imagecube
 import dsharp_helper as dh
 import dsharp_opac as opacity
 import disklab
@@ -145,7 +145,7 @@ def make_disklab2d_model(
     return disk2d
 
 
-def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0, psi=0.0):
+def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0, psi=0.0, beam=None):
     """Get radial profile from fits file.
 
     Reads a fits file and determines a radial profile with `imagecube`
@@ -165,17 +165,32 @@ def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0
     z0, psi : float
         the scale height at 1 arcse and the radial exponent used in the deprojection
 
+    beam : None | tuple
+        if None: will be determined by imgcube
+        if 3-element tuple: assume this beam a, b, PA.
+
     Returns:
     x, y, dy: arrays
         radial grid, intensity (cgs), error (cgs)
     """
 
-    data = imagecube(fname, clip=clip)
+    data = imagecube(fname, FOV=clip)
+
+    if beam is not None:
+        data.bmaj, data.bmin, data.bpa = beam
+        data.beamarea_arcsec = data._calculate_beam_area_arcsec()
+        data.beamarea_str = data._calculate_beam_area_str()
 
     x, y, dy = data.radial_profile(inc=inc, PA=PA)
 
-    y = (y * u.Jy / data.beam_area_str).cgs.value
-    dy = (dy * u.Jy / data.beam_area_str).cgs.value
+    if data.bunit.lower() == 'jy/beam':
+        y *= 1e-23 / data.beamarea_str
+        dy *= 1e-23 / data.beamarea_str
+    elif data.bunit.lower() == 'jy/pixel':
+        y *= 1e-23 * data.pix_per_beam / data.beamarea_str
+        dy *= 1e-23 * data.pix_per_beam / data.beamarea_str
+    else:
+        raise ValueError('unknown unit, please implement conversion to CGS here')
 
     if show_plots:
         f, ax = plt.subplots()
@@ -235,7 +250,7 @@ def make_opacs(a, lam, fname='dustkappa_IMLUP', constants=None, n_theta=101):
     return opac_dict
 
 
-def chop_forward_scattering(opac_dict, chopforward=3):
+def chop_forward_scattering(opac_dict, chopforward=5):
     """Chop the forward scattering.
 
     This part chops the very-forward scattering part of the phase function.
@@ -266,17 +281,15 @@ def chop_forward_scattering(opac_dict, chopforward=3):
 
     n_a = len(a)
     n_lam = len(lam)
-    n_theta = len(theta)
 
     zscat = opacity.calculate_mueller_matrix(lam, m, S1, S2, theta=theta, k_sca=k_sca)['zscat']
-
     zscat_nochop = zscat.copy()
+
+    mu = np.cos(theta * np.pi / 180.)
+    # dmu = np.diff(mu)
 
     for grain in range(n_a):
         for i in range(n_lam):
-            #
-            # Now loop over the grain sizes
-            #
             if chopforward > 0:
                 iang = np.where(theta < chopforward)
                 if theta[0] == 0.0:
@@ -284,16 +297,19 @@ def chop_forward_scattering(opac_dict, chopforward=3):
                 else:
                     iiang = np.min(iang) - 1
                 zscat[grain, i, iang, :] = zscat[grain, i, iiang, :]
-                mu = np.cos(theta * np.pi / 180.)
-                dmu = np.abs(mu[1:n_theta] - mu[0:(n_theta - 1)])
-                zav = 0.5 * (zscat[grain, i, 1:n_theta, 0] + zscat[grain, i, 0:n_theta - 1, 0])
-                dum = 0.5 * zav * dmu
-                sum = dum.sum() * 4 * np.pi
-                k_sca[grain, i] = sum
 
-                mu_2 = 0.5 * (np.cos(theta[1:n_theta] * np.pi / 180.) + np.cos(theta[0:n_theta - 1] * np.pi / 180.))
-                P_mu = 0.5 * ((2 * np.pi * zscat[grain, i, 1:n_theta, 0] / k_sca[grain, i]) + (2 * np.pi * zscat[grain, i, 0:n_theta - 1, 0] / k_sca[grain, i]))
-                g[grain, i] = np.sum(P_mu * mu_2 * dmu)
+                # zav = 0.5 * (zscat[grain, i, 1:, 0] + zscat[grain, i, :-1, 0])
+                # dum = -0.5 * zav * dmu
+                # integral = dum.sum() * 4 * np.pi
+                # k_sca[grain, i] = integral
+
+                # g = <mu> = 2 pi / kappa * int(Z11(mu) mu dmu)
+                # mu_av = 0.5 * (mu[1:] + mu[:-1])
+                # P_mu = 2 * np.pi / k_sca[grain, i] * 0.5 * (zscat[grain, i, 1:, 0] + zscat[grain, i, :-1, 0])
+                # g[grain, i] = np.sum(P_mu * mu_av * dmu)
+
+                k_sca[grain, i] = -2 * np.pi * np.trapz(zscat[grain, i, :, 0], x=mu)
+                g[grain, i] = -2 * np.pi * np.trapz(zscat[grain, i, :, 0] * mu, x=mu) / k_sca[grain, i]
 
     return zscat, zscat_nochop, k_sca, g
 
