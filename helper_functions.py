@@ -366,6 +366,6 @@ def write_radmc3d(disk2d, lam, path, show_plots=False, nphot=10000000):
             'scattering_mode_max': 5,
             'nphot': nphot,
             'dust_2daniso_nphi': '60',
-            'mc_scat_maxtauabs', '5.d0',
+            'mc_scat_maxtauabs': '5.d0',
         },
         path=path)
