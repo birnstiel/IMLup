@@ -219,7 +219,7 @@ def make_opacs(a, lam, fname='dustkappa_IMLUP', porosity=None, constants=None, n
             raise ValueError('porosity has to be >=0 and <1!')
 
         if porosity > 0.0:
-            fname = fname + f'_p{porosity:.2f}'
+            fname = fname + f'_p{100 * porosity:.0f}'
 
         constants = opacity.get_dsharp_mix(porosity=porosity)
     else:
