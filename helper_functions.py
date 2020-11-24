@@ -201,7 +201,7 @@ def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0
     return x, y, dy
 
 
-def make_opacs(a, lam, fname='dustkappa_IMLUP', constants=None, n_theta=101):
+def make_opacs(a, lam, fname='dustkappa_IMLUP', porosity=None, constants=None, n_theta=101):
     "make optical constants file"
 
     if n_theta // 2 == n_theta / 2:
@@ -210,10 +210,23 @@ def make_opacs(a, lam, fname='dustkappa_IMLUP', constants=None, n_theta=101):
 
     n_a = len(a)
     n_lam = len(lam)
-    opac_fname = Path(fname).with_suffix('.npz')
 
     if constants is None:
-        constants = opacity.get_dsharp_mix()
+        if porosity is None:
+            porosity = 0.0
+
+        if porosity < 0.0 or porosity >= 1.0:
+            raise ValueError('porosity has to be >=0 and <1!')
+
+        if porosity > 0.0:
+            fname = fname + f'_p{porosity:.2f}'
+
+        constants = opacity.get_dsharp_mix(porosity=porosity)
+    else:
+        if porosity is not None:
+            raise ValueError('if constants are given, porosity keyword cannot be used')
+
+    opac_fname = Path(fname).with_suffix('.npz')
 
     diel_const, rho_s = constants
 
@@ -246,6 +259,8 @@ def make_opacs(a, lam, fname='dustkappa_IMLUP', constants=None, n_theta=101):
         print(f'writing opacity to {opac_fname} ... ', end='', flush=True)
         opacity.write_disklab_opacity(opac_fname, opac_dict)
         print('Done!')
+
+    opac_dict['filename'] = str(opac_fname)
 
     return opac_dict
 
