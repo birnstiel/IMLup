@@ -233,8 +233,9 @@ def make_opacs(a, lam, fname='dustkappa_IMLUP', porosity=None, constants=None, n
     run_opac = True
 
     if opac_fname.is_file():
-        with np.load(opac_fname) as fid:
-            opac_dict = {k: v for k, v in fid.items()}
+
+        opac_dict = read_opacs(opac_fname)
+
         if (
             (len(opac_dict['a']) == n_a) and
             np.allclose(opac_dict['a'], a) and
@@ -262,6 +263,12 @@ def make_opacs(a, lam, fname='dustkappa_IMLUP', porosity=None, constants=None, n
 
     opac_dict['filename'] = str(opac_fname)
 
+    return opac_dict
+
+
+def read_opacs(fname):
+    with np.load(fname) as fid:
+        opac_dict = {k: v for k, v in fid.items()}
     return opac_dict
 
 
