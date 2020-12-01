@@ -145,7 +145,44 @@ def make_disklab2d_model(
     return disk2d
 
 
-def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0, psi=0.0, beam=None):
+def get_normalized_profiles(fname, **kwargs):
+    """calculates the profiles in all major and minor axes
+
+    Arguments
+    ---------
+
+    fname : str
+        file name
+
+    kwargs : are passed to `get_profile`
+    """
+
+    # determine the norm as average at 1 arcsec
+    if 'r_norm' in kwargs:
+        raise ValueError('do not pass r_norm to scale different profiles')
+
+    x, y, dy = get_profile_from_fits(fname, **kwargs)
+    norm = np.interp(1.0, x, y)
+    kwargs['norm'] = norm
+
+    # set the names and angles of the profiles
+
+    masks = {}
+    masks['B'] = dict(PA_min=85, PA_max=95)
+    masks['T'] = dict(PA_min=-95, PA_max=-85)
+    masks['L'] = dict(PA_min=-10, PA_max=0)
+    masks['R'] = dict(PA_min=-180, PA_max=-170)
+
+    profiles = dict()
+
+    for key in masks.keys():
+        x, y, dy = get_profile_from_fits(fname, **kwargs, **masks[key])
+        profiles[key] = dict(x=x, y=y, dy=dy, mask=masks[key], norm=norm)
+
+    return profiles
+
+
+def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0, psi=0.0, beam=None, r_norm=None, norm=None, **kwargs):
     """Get radial profile from fits file.
 
     Reads a fits file and determines a radial profile with `imagecube`
@@ -169,10 +206,21 @@ def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0
         if None: will be determined by imgcube
         if 3-element tuple: assume this beam a, b, PA.
 
+    r_norm : None | float
+        if not None: normalize at this radius
+
+    norm : None | float
+        divide by this norm
+
+    kwargs are passed to radial_profile
+
     Returns:
     x, y, dy: arrays
         radial grid, intensity (cgs), error (cgs)
     """
+
+    if norm is not None and r_norm is not None:
+        raise ValueError('only norm or r_norm can be set, not both!')
 
     data = imagecube(fname, FOV=clip)
 
@@ -181,7 +229,7 @@ def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0
         data.beamarea_arcsec = data._calculate_beam_area_arcsec()
         data.beamarea_str = data._calculate_beam_area_str()
 
-    x, y, dy = data.radial_profile(inc=inc, PA=PA)
+    x, y, dy = data.radial_profile(inc=inc, PA=PA, z0=z0, psi=psi, **kwargs)
 
     if data.bunit.lower() == 'jy/beam':
         y *= 1e-23 / data.beamarea_str
@@ -192,6 +240,15 @@ def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0
     else:
         raise ValueError('unknown unit, please implement conversion to CGS here')
 
+    if r_norm is not None:
+        norm = np.interp(r_norm, x, y)
+        y /= norm
+        dy /= norm
+
+    if norm is not None:
+        y /= norm
+        dy /= norm
+
     if show_plots:
         f, ax = plt.subplots()
         ax.semilogy(x, y)
@@ -199,6 +256,53 @@ def get_profile_from_fits(fname, clip=2.5, show_plots=False, inc=0, PA=0, z0=0.0
         ax.set_ylim(bottom=1e-16)
 
     return x, y, dy
+
+
+def azimuthal_profile(cube, n_theta=30, **kwargs):
+    """derive an azimuthal profile
+
+    Arguments:
+    ----------
+
+    r : float
+        radius around which to take the azimuthal bin
+
+    dr : float
+        radial width of the annulus
+
+    cube : imgcube instance
+        the image cube from `gofish.imgcube`
+
+    n_theta : int
+        number of bins in azimuth
+
+    kwargs are passed to `cube.disk_coords`  and `get_mask` but can contain PA_min and PA_max
+    to constrain the azimuthal extent
+    """
+
+    if kwargs.get('r_min') is None or kwargs.get('r_max') is None:
+        raise ValueError('need to set at least r_min and r_max')
+
+    r_min = kwargs.pop('r_min')
+    r_max = kwargs.pop('r_max')
+    PA_min = kwargs.pop('PA_min', -180)
+    PA_max = kwargs.pop('PA_max', 180)
+
+    mask = cube.get_mask(r_min=r_min, r_max=r_max, PA_min=PA_min, PA_max=PA_max, **kwargs)
+    rvals, tvals, _ = cube.disk_coords(**kwargs)
+
+    # rvals_annulus = rvals[mask]
+    tvals_annulus = tvals[mask]
+    dvals_annulus = cube.data[mask]
+
+    tbins = np.linspace(np.radians(PA_min), np.radians(PA_max), n_theta + 1)
+    bin_centers = 0.5 * (tbins[1:] + tbins[:-1])
+    assert bin_centers.size == n_theta
+    tidx = np.digitize(tvals_annulus, tbins)
+
+    return bin_centers, \
+        np.array([np.mean(dvals_annulus[tidx == t]) for t in range(1, n_theta + 1)]), \
+        np.array([np.std(dvals_annulus[tidx == t]) for t in range(1, n_theta + 1)])
 
 
 def make_opacs(a, lam, fname='dustkappa_IMLUP', porosity=None, constants=None, n_theta=101):
