@@ -130,11 +130,11 @@ def logP(parameters, options, debug=False):
 
     # Read in the fits files into imagecubes, and copy the beam information from the observation to the simulation.
 
-    iq_obs = imagecube(str(fname_mm_obs))
-    iq_sim = imagecube(str(fname_mm_sim))
-    iq_sim.bmaj, iq_sim.bmin, iq_sim.bpa = iq_obs.beam
-    iq_sim.beamarea_arcsec = iq_sim._calculate_beam_area_arcsec()
-    iq_sim.beamarea_str = iq_sim._calculate_beam_area_str()
+    iq_mm_obs = imagecube(str(fname_mm_obs))
+    iq_mm_sim = imagecube(str(fname_mm_sim))
+    iq_mm_sim.bmaj, iq_mm_sim.bmin, iq_mm_sim.bpa = iq_mm_obs.beam
+    iq_mm_sim.beamarea_arcsec = iq_mm_sim._calculate_beam_area_arcsec()
+    iq_mm_sim.beamarea_str = iq_mm_sim._calculate_beam_area_str()
 
     x_mm_sim, y_mm_sim, dy_mm_sim = get_profile_from_fits(
         str(fname_mm_sim),
@@ -142,7 +142,7 @@ def logP(parameters, options, debug=False):
         inc=inc, PA=PA,
         z0=0.0,
         psi=0.0,
-        beam=iq_obs.beam,
+        beam=iq_mm_obs.beam,
         show_plots=debug)
 
     i_max = max(len(x_mm_obs), len(x_mm_sim))
@@ -155,7 +155,11 @@ def logP(parameters, options, debug=False):
     dy_mm_obs = dy_mm_obs[:i_max]
 
     if not np.allclose(x_mm_sim, x_mm_obs):
-        raise AssertionError('observed and simulated radial profile grids are not equal')
+        try:
+            from IPython import embed
+            embed()
+        except Exception:
+            raise AssertionError('observed and simulated radial profile grids are not equal')
 
     # TODO: Calculate the log probability for the mm here
 
@@ -189,12 +193,12 @@ def logP(parameters, options, debug=False):
     im = image.readImage(str(fname_sca_sim.with_suffix('.out')))
     im.writeFits(str(fname_sca_sim), dpc=dpc, coord='15h56m09.17658s -37d56m06.1193s')
 
-    iq_obs = imagecube(str(fname_sca_obs))
-    iq_sim = imagecube(str(fname_sca_sim))
+    iq_sca_obs = imagecube(str(fname_sca_obs))
+    iq_sca_sim = imagecube(str(fname_sca_sim))
 
     # set the "beam" for the two images such that the samplint happens identically
 
-    for iq in [iq_obs, iq_sim]:
+    for iq in [iq_sca_obs, iq_sca_sim]:
         iq.bmaj, iq.bmin, iq.bpa = beam_sca
         iq.beamarea_arcsec = iq._calculate_beam_area_arcsec()
         iq.beamarea_str = iq._calculate_beam_area_str()
@@ -207,6 +211,7 @@ def logP(parameters, options, debug=False):
         inc=inc, PA=PA,
         z0=z0,
         psi=psi,
+        beam=beam_sca,
         show_plots=debug)
 
     i_max = min(len(x_sca_obs), len(x_sca_sim))
@@ -219,7 +224,11 @@ def logP(parameters, options, debug=False):
     dy_sca_obs = dy_sca_obs[:i_max]
 
     if not np.allclose(x_sca_sim, x_sca_obs):
-        raise AssertionError('observed and simulated radial profile grids are not equal')
+        try:
+            from IPython import embed
+            embed()
+        except Exception:
+            raise AssertionError('observed and simulated radial profile grids are not equal')
 
     # TODO: calculate logP
     logP = -np.inf
@@ -232,8 +241,10 @@ def logP(parameters, options, debug=False):
             'x_mm_sim': x_mm_sim,
             'y_mm_sim': y_mm_sim,
             'dy_mm_sim': dy_mm_sim,
-            'iq_obs': iq_obs,
-            'iq_sim': iq_sim,
+            'iq_mm_obs': iq_mm_obs,
+            'iq_mm_sim': iq_mm_sim,
+            'iq_sca_obs': iq_sca_obs,
+            'iq_sca_sim': iq_sca_sim,
             'disk2d': disk2d,
         }
         return logP, debug_info
