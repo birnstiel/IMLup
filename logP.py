@@ -60,6 +60,7 @@ def logP(parameters, options, debug=False):
     z0 = options['z0']
     psi = options['psi']
     lam_sca = options['lam_sca']
+    beam_sca = options['beam_sca']
 
     fname_sca_obs = options['fname_sca_obs']
 
@@ -99,6 +100,7 @@ def logP(parameters, options, debug=False):
         rout,
         r_c,
         fname_opac,
+        show_plots=debug
     )
 
     print(f'disk to star mass ratio = {disk2d.disk.mass / disk2d.disk.mstar:.2g}')
@@ -109,7 +111,7 @@ def logP(parameters, options, debug=False):
     lam_opac = opac_dict['lam']
     n_a = len(opac_dict['a'])
 
-    write_radmc3d(disk2d, lam_opac, temp_path, show_plots=True)
+    write_radmc3d(disk2d, lam_opac, temp_path, show_plots=debug)
 
     # ## Calculate the mm continuum image
 
@@ -140,7 +142,8 @@ def logP(parameters, options, debug=False):
         inc=inc, PA=PA,
         z0=0.0,
         psi=0.0,
-        beam=iq_obs.beam)
+        beam=iq_obs.beam,
+        show_plots=debug)
 
     i_max = max(len(x_mm_obs), len(x_mm_sim))
 
@@ -189,6 +192,13 @@ def logP(parameters, options, debug=False):
     iq_obs = imagecube(str(fname_sca_obs))
     iq_sim = imagecube(str(fname_sca_sim))
 
+    # set the "beam" for the two images such that the samplint happens identically
+
+    for iq in [iq_obs, iq_sim]:
+        iq.bmaj, iq.bmin, iq.bpa = beam_sca
+        iq.beamarea_arcsec = iq._calculate_beam_area_arcsec()
+        iq.beamarea_str = iq._calculate_beam_area_str()
+
     # %% get the scattered light profile
 
     x_sca_sim, y_sca_sim, dy_sca_sim = get_profile_from_fits(
@@ -196,7 +206,8 @@ def logP(parameters, options, debug=False):
         clip=clip,
         inc=inc, PA=PA,
         z0=z0,
-        psi=psi)
+        psi=psi,
+        show_plots=debug)
 
     i_max = min(len(x_sca_obs), len(x_sca_sim))
 
