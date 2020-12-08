@@ -241,11 +241,19 @@ def logP(parameters, options, debug=False):
             'x_mm_sim': x_mm_sim,
             'y_mm_sim': y_mm_sim,
             'dy_mm_sim': dy_mm_sim,
+            'x_sca_obs': x_sca_obs,
+            'y_sca_obs': y_sca_obs,
+            'dy_sca_obs': dy_sca_obs,
+            'x_mm_obs': x_mm_obs,
+            'y_mm_obs': y_mm_obs,
+            'dy_mm_obs': dy_mm_obs,
             'iq_mm_obs': iq_mm_obs,
             'iq_mm_sim': iq_mm_sim,
             'iq_sca_obs': iq_sca_obs,
             'iq_sca_sim': iq_sca_sim,
             'disk2d': disk2d,
+            'fname_sca_sim': fname_sca_sim,
+            'temp_path': temp_path,
         }
         return logP, debug_info
     else:
