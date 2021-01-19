@@ -16,6 +16,7 @@ from disklab.radmc3d import write
 import disklab
 
 from helper_functions import get_profile_from_fits
+from helper_functions import get_normalized_profiles
 from helper_functions import make_disklab2d_model
 from helper_functions import write_radmc3d
 from helper_functions import read_opacs
@@ -66,9 +67,7 @@ def logP(parameters, options, debug=False):
 
     # get the scattered light data
 
-    x_sca_obs = options['x_sca_obs']
-    y_sca_obs = options['y_sca_obs']
-    dy_sca_obs = options['dy_sca_obs']
+    profiles_sca_obs = options['profiles_sca_obs']
 
     # name of the opacities file
 
@@ -205,45 +204,31 @@ def logP(parameters, options, debug=False):
 
     # %% get the scattered light profile
 
-    x_sca_sim, y_sca_sim, dy_sca_sim = get_profile_from_fits(
+    profiles_sca_sim = get_normalized_profiles(
         str(fname_sca_sim),
         clip=clip,
         inc=inc, PA=PA,
         z0=z0,
         psi=psi,
-        beam=beam_sca,
-        show_plots=debug)
+        beam=beam_sca)
 
-    i_max = min(len(x_sca_obs), len(x_sca_sim))
-
-    x_sca_sim = x_sca_sim[:i_max]
-    y_sca_sim = y_sca_sim[:i_max]
-    dy_sca_sim = dy_sca_sim[:i_max]
-    x_sca_obs = x_sca_obs[:i_max]
-    y_sca_obs = y_sca_obs[:i_max]
-    dy_sca_obs = dy_sca_obs[:i_max]
-
-    if not np.allclose(x_sca_sim, x_sca_obs):
+    if not np.allclose(profiles_sca_obs['B']['x'], profiles_sca_sim['B']['x']):
         try:
             from IPython import embed
             embed()
         except Exception:
             raise AssertionError('observed and simulated radial profile grids are not equal')
 
-    # TODO: calculate logP
+    # TODO: calculate logP from the four profiles
     logP = -np.inf
 
     if debug:
         debug_info = {
-            'x_sca_sim': x_sca_sim,
-            'y_sca_sim': y_sca_sim,
-            'dy_sca_sim': dy_sca_sim,
+            'profiles_sca_sim': profiles_sca_sim,
+            'profiles_sca_obs': profiles_sca_obs,
             'x_mm_sim': x_mm_sim,
             'y_mm_sim': y_mm_sim,
             'dy_mm_sim': dy_mm_sim,
-            'x_sca_obs': x_sca_obs,
-            'y_sca_obs': y_sca_obs,
-            'dy_sca_obs': dy_sca_obs,
             'x_mm_obs': x_mm_obs,
             'y_mm_obs': y_mm_obs,
             'dy_mm_obs': dy_mm_obs,
