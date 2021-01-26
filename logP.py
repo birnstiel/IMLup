@@ -3,6 +3,7 @@
 
 import getpass
 import tempfile
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -129,8 +130,8 @@ def logP(parameters, options, debug=False):
 
     # Read in the fits files into imagecubes, and copy the beam information from the observation to the simulation.
 
-    iq_mm_obs = imagecube(str(fname_mm_obs))
-    iq_mm_sim = imagecube(str(fname_mm_sim))
+    iq_mm_obs = imagecube(str(fname_mm_obs), clip=clip)
+    iq_mm_sim = imagecube(str(fname_mm_sim), clip=clip)
     iq_mm_sim.bmaj, iq_mm_sim.bmin, iq_mm_sim.bpa = iq_mm_obs.beam
     iq_mm_sim.beamarea_arcsec = iq_mm_sim._calculate_beam_area_arcsec()
     iq_mm_sim.beamarea_str = iq_mm_sim._calculate_beam_area_str()
@@ -180,8 +181,11 @@ def logP(parameters, options, debug=False):
         write(f, '----------------------------------------------------------------------------')
 
     # image calculation
+
+    iq_sca_obs = imagecube(str(fname_sca_obs), clip=clip)
+
     disklab.radmc3d.radmc3d(
-        f'image incl {inc} posang {PA-90} npix 500 lambda {lam_sca / 1e-4} sizeau {2 * rout / au} setthreads 4',
+        f'image incl {inc} posang {PA-90} npix {iq_sca_obs.data.shape[0]} lambda {lam_sca / 1e-4} sizeau {2 * rout / au} setthreads 4',
         path=temp_path,
         executable=str(radmc3d_exec))
 
@@ -192,8 +196,7 @@ def logP(parameters, options, debug=False):
     im = image.readImage(str(fname_sca_sim.with_suffix('.out')))
     im.writeFits(str(fname_sca_sim), dpc=dpc, coord='15h56m09.17658s -37d56m06.1193s')
 
-    iq_sca_obs = imagecube(str(fname_sca_obs))
-    iq_sca_sim = imagecube(str(fname_sca_sim))
+    iq_sca_sim = imagecube(str(fname_sca_sim), clip=clip)
 
     # set the "beam" for the two images such that the samplint happens identically
 
@@ -212,12 +215,16 @@ def logP(parameters, options, debug=False):
         psi=psi,
         beam=beam_sca)
 
-    if not np.allclose(profiles_sca_obs['B']['x'], profiles_sca_sim['B']['x']):
+    try:
+        assert np.allclose(profiles_sca_obs['B']['x'], profiles_sca_sim['B']['x'])
+    except Exception:
+        # raise AssertionError('observed and simulated radial profile grids are not equal')
+        warnings.warn('observed and simulated radial profile grids are not equal')
         try:
             from IPython import embed
             embed()
         except Exception:
-            raise AssertionError('observed and simulated radial profile grids are not equal')
+            pass
 
     # TODO: calculate logP from the four profiles
     logP = -np.inf
